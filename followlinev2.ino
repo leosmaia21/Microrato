@@ -9,20 +9,24 @@
 #define AIN2 3
 #define BIN1 9
 #define BIN2 6
-#define SAMP_FREQ 170;
-#define K 25  // pi com k de 3
-#define Ti 6  // pi com Ti de 0.5
-#define Td 0.5
+#define SAMP_FREQ 200;
+#define K 20   // pi com k de 3
+#define Ti 12  // pi com Ti de 0.5
+#define Td 0.01
 #define N 10.0
 
 #define MAX_SPEED 80
-
+typedef enum { left, right } t;
 int baseSpeed = 60;
 void Motors_Init();
 void MotorEsqSpeed(int Speed);
 void MotorDirSpeed(int Speed);
+void readSensors(void);
 void MotorsSpeed(int Vel_Esq, int Vel_Dir);
-
+void left90(t);
+void controlador(void);
+int delayDone = 0;
+t tt = left;
 // Preto = 0
 // Branco = 1
 
@@ -47,15 +51,15 @@ float prevU = 0;
 float prevPrevU = 0;
 float error = 0.0;
 /*controlador PI*/
-float s0 = K * (1 + (h / Ti));
-float s1 = -K;
+/*float s0 = K * (1 + (h / Ti));
+float s1 = -K;*/
 
 /*controlador PID*/
-/*float X=-(Td/(N*h+Td));
-float s0=K*(1+(h/Ti)-X*N);
-float s1=K*(X*(1+(h/Ti)+2*N)-1);
-float s2= -K*X*(1+N);
-float r1= X;*/
+float X = -(Td / (N * h + Td));
+float s0 = K * (1 + (h / Ti) - X * N);
+float s1 = K * (X * (1 + (h / Ti) + 2 * N) - 1);
+float s2 = -K * X * (1 + N);
+float r1 = X;
 
 // const int startBut = 8;
 
@@ -72,13 +76,97 @@ void setup() {
     // MotorsSpeed(40, 40);
 
     /* Initialize Serial with 9600bps  */
+    // MotorsSpeed(0, 0);
+    delay(1000);
+    MotorsSpeed(50, 50);
     Serial.begin(9600);
+    // MotorsSpeed(70, -70);
 }
 int esq = 0;
 int dir = 0;
 int setpoint = 0.0;
 void loop() {
     // read line
+    // readSensors();
+    // MotorsSpeed(esq, dir);
+    controlador();
+    MotorsSpeed(100, 100);
+    delay(100);
+    MotorsSpeed(0, 0);
+    readSensors();
+    if (LL == 1) {
+        tt = left;
+    }
+    if (RR == 1) {
+        tt = right;
+    }
+    MotorsSpeed(100, 100);
+    delay(100);
+    delay(250);
+    turn90(tt);
+    delay(4000);
+
+    // delay(h * 1000);
+}
+
+void turn90(t x) {
+    if (x == left) {
+        MotorsSpeed(-70, 70);
+    } else {
+        MotorsSpeed(70, -70);
+    }
+    while (1) {
+        readSensors();
+        if (delayDone == 0) {
+            delay(200);
+            delayDone = 1;
+        } else {
+            if (M == 0) {
+                delay(2);
+            } else {
+                MotorsSpeed(0, 0);
+                delayDone = 0;
+                break;
+            }
+        }
+        delay(1000 * h);
+    }
+}
+
+void controlador(void) {
+    int count = 0;
+    while (1) {
+        Serial.println("foda se");
+        readSensors();
+        error = -((LL * (0) + L * (-3.0) + M * 0 + R * 43.0 + RR * 0) / 2.0);
+        // u = prevU + s0 * error + s1 * prevError;
+        // u=error*K;
+        Serial.println(error);
+        u = (1 - r1) * prevU + r1 * prevPrevU + s0 * error + s1 * prevError + s2 * prevPrevError;
+        prevPrevError = prevError;
+        prevPrevU = prevU;
+        prevU = u;
+        prevError = error;
+
+        esq = baseSpeed - u;
+        dir = baseSpeed + u;
+        if (esq > MAX_SPEED) {
+            esq = MAX_SPEED;
+        }
+        if (dir > MAX_SPEED) {
+            dir = MAX_SPEED;
+        }
+        if ((LL == 1 || RR == 1) && count > 200) {
+            MotorsSpeed(0, 0);
+            break;
+        }
+        MotorsSpeed(esq, dir);
+        delay(1000 * h);
+        count++;
+    }
+}
+////////////   FUNÇÕES /////////////////
+void readSensors(void) {
     AN[0] = analogRead(IR5);
     AN[1] = analogRead(IR4);
     AN[2] = analogRead(IR3);
@@ -90,76 +178,7 @@ void loop() {
     M = black_white(AN[2], minimum, maximum);
     L = black_white(AN[3], minimum, maximum);
     LL = black_white(AN[4], minimum, maximum);
-
-    // Define se o valor que está a ler corresponde a 1 ou 0 (preto ou branco)
-
-    /*Serial.print(AN[4]);
-    Serial.print(" ");
-    Serial.print(AN[3]);
-    Serial.print(" ");
-    Serial.print(AN[2]);
-    Serial.print(" ");
-    Serial.print(AN[1]);
-    Serial.print(" ");
-    Serial.println(AN[0]);
-
-    Serial.println("LL L M R RR ");
-
-    Serial.print(LL);
-    Serial.print(" ");
-    Serial.print(L);
-    Serial.print(" ");
-    Serial.print(M);
-    Serial.print(" ");
-    Serial.print(R);
-    Serial.print(" ");
-    Serial.println(RR);*/
-
-    /*if(RR==1 || LL==1){
-      baseSpeed=50;
-    }else{
-      baseSpeed=70;
-    }*/
-
-    error = setpoint - ((LL * (-8.0) + L * (-2.0) + M * 0 + R * 2.0 + RR * 8.0) / 4.0);
-    u = prevU + s0 * error + s1 * prevError;
-    // u=error*K;
-
-    // u=(1-r1)*prevU + r1*prevPrevU + s0*error + s1*prevError + s2*prevPrevError;
-    prevPrevError = prevError;
-    prevPrevU = prevU;
-    prevU = u;
-    prevError = error;
-
-    esq = baseSpeed - u;
-    dir = baseSpeed + u;
-    Serial.print("\r\n");
-    Serial.print("u:");
-
-    Serial.println(u);
-    Serial.print("esq:");
-    Serial.print(esq);
-    Serial.print("dir:");
-    Serial.print(dir);
-    Serial.println(u);
-    Serial.print("esq:");
-    Serial.print(esq);
-    Serial.print("dir:");
-    Serial.print(dir);
-    if (esq > MAX_SPEED) {
-        esq = MAX_SPEED;
-    }
-    if (dir > MAX_SPEED) {
-        dir = MAX_SPEED;
-    }
-
-    MotorsSpeed(esq, dir);
-
-    delay(h * 1000);
 }
-
-////////////   FUNÇÕES /////////////////
-
 void IR_Init() {
     pinMode(IR5, INPUT);
     pinMode(IR4, INPUT);
