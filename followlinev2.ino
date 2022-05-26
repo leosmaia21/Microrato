@@ -13,8 +13,9 @@
 #define K 25  // pi com k de 3
 #define Ti 6  // pi com Ti de 0.5
 #define Td 0.5
-#define N 20.0
+#define N 10.0
 
+#define MAX_SPEED 80
 
 int baseSpeed = 60;
 void Motors_Init();
@@ -145,11 +146,11 @@ void loop() {
     Serial.print(esq);
     Serial.print("dir:");
     Serial.print(dir);
-    if (esq > 70) {
-        esq = 70;
+    if (esq > MAX_SPEED) {
+        esq = MAX_SPEED;
     }
-    if (dir > 70) {
-        dir = 70;
+    if (dir > MAX_SPEED) {
+        dir = MAX_SPEED;
     }
 
     MotorsSpeed(esq, dir);
